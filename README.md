@@ -1,6 +1,14 @@
 # RigWatch
 RigWatch is a small simulated project built to understand the shape of drilling telemetry and the domain language around it. It does **not** use real Pason data, products, or integrations. Codex helped scaffold the project; the code is intentionally compact enough to read through 
 
+## Live demo
+
+[Open the live RigWatch demo](https://alexander124-jpg.github.io/RigWatch/)
+
+The site is deployed from `main` with GitHub Actions and GitHub Pages. The dashboard below shows the pit-volume chart with its alarm marker, threshold, and five-second change line.
+
+![RigWatch dashboard with pit-volume alarm marker](docs/rigwatch-kick-alarm.png)
+
 ## Run it
 
 ```bash
@@ -11,7 +19,7 @@ npm run dev
 Checks:
 
 ```bash
-npm run lint   # TypeScript type-check
+npm run lint   # ESLint plus TypeScript type-check
 npm test       # Vitest unit tests
 npm run build  # production build
 ```

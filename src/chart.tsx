@@ -10,8 +10,6 @@ type ChartProps = {
   unit: string;
 };
 
-type Point = { x: number; y: number };
-
 const WIDTH = 640;
 const HEIGHT = 190;
 
