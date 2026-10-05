@@ -1,5 +1,4 @@
 # RigWatch
-
 RigWatch is a small simulated project built to understand the shape of drilling telemetry and the domain language around it. It does **not** use real Pason data, products, or integrations. Codex helped scaffold the project; the code is intentionally compact enough to read through and explain in an interview.
 
 ## Run it
