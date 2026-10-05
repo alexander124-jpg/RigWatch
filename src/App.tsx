@@ -26,6 +26,9 @@ const scenarios: Array<{ value: Scenario; label: string }> = [
 ];
 
 const scenarioLabel = (scenario: Scenario) => scenarios.find((option) => option.value === scenario)?.label ?? scenario;
+const formatValue = (value: number | undefined, digits = 0) => value === undefined || !Number.isFinite(value) ? '—' : value.toFixed(digits);
+const formatTime = (timestamp: number | undefined) => timestamp === undefined ? '—' : new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const alarmPriority = (status: Alarm['status']) => status === 'active' ? 'CRITICAL' : status === 'acknowledged' ? 'HIGH' : 'HISTORICAL';
 
 function App() {
   const simulator = useRef(new RigSimulator());
@@ -85,9 +88,6 @@ function App() {
   const current = readings.at(-1);
   const recentReadings = readings.slice(-ALARM_OPTIONS.windowSeconds - 1);
   const detectorActive = detectKickAlarm(recentReadings, ALARM_OPTIONS);
-  const timeLabel = current
-    ? new Date(current.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    : 'Waiting for first reading';
   const statusText = online ? 'Live feed' : 'Offline · collecting locally';
   const qualityText = lastQualityIssueCount === 0 ? 'Data quality nominal' : `${lastQualityIssueCount} quality issue(s)`;
   const currentAlarm = alarms.find((alarm) => alarm.status === 'active') ?? alarms.find((alarm) => alarm.status === 'acknowledged');
@@ -128,36 +128,55 @@ function App() {
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup"><span className="brand-mark">RW</span><div><p className="eyebrow">SIMULATED FIELD FEED</p><h1>RigWatch</h1></div></div>
-        <div className="top-actions"><span className={`connection-dot ${online ? 'online' : 'offline'}`} /> <span>{statusText}</span><button className="button secondary" onClick={toggleOnline}>{online ? 'Go offline' : 'Reconnect'}</button></div>
+      <header className="console-header">
+        <div className="brand-lockup"><span className="brand-mark">RW</span><div><p className="eyebrow">RIGWATCH / SIMULATED EDR</p><h1>North Star / Rig 07</h1></div></div>
+        <div className="header-readouts"><span><b>WELL</b> A-01</span><span><b>MODE</b> DRILLING</span><span><b>TIME</b> {formatTime(current?.timestamp)}</span></div>
+        <div className="top-actions"><span className={`connection-dot ${online ? 'online' : 'offline'}`} /><span>{statusText}</span><button className="button secondary" onClick={toggleOnline}>{online ? 'Go offline' : 'Reconnect'}</button></div>
       </header>
 
-      <section className="hero-row">
-        <div><p className="eyebrow">NORTH STAR · RIG 07</p><h2>Drilling operations overview</h2><p className="muted">A deliberately small simulation for learning the shape of rig telemetry.</p></div>
-        <div className="hero-controls">
-          <label className="scenario-control"><span className="eyebrow">SCENARIO</span><select value={scenario} onChange={(event) => startScenario(event.target.value as Scenario)} aria-label="Choose a rig scenario">{scenarios.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <button className="button kick-button" onClick={injectKick}>Inject kick event <span>↗</span></button>
+      <section className="console-strip" aria-live="polite">
+        <div className="strip-cell strip-state"><span className="eyebrow">SYSTEM STATE</span><strong className={currentAlarm ? 'state-critical' : ''}><span className="status-icon" aria-hidden="true">{currentAlarm ? '!' : '✓'}</span>{currentAlarm ? `KICK ALARM / ${currentAlarm.status.toUpperCase()}` : 'SYSTEM NOMINAL'}</strong></div>
+        <div className="strip-cell"><span className="eyebrow">DATA QUALITY</span><strong>{qualityText.replace('Data quality ', '')}</strong></div>
+        <div className="strip-cell"><span className="eyebrow">OPERATION</span><strong>{scenarioLabel(scenario)}</strong></div>
+        <div className="strip-cell"><span className="eyebrow">LAST SAMPLE</span><strong>{formatTime(current?.timestamp)}</strong><small>1 sec cycle</small></div>
+        <div className="strip-cell"><span className="eyebrow">BUFFER</span><strong>{bufferedCount} readings</strong><small>{online ? 'live delivery' : 'collecting locally'}</small></div>
+      </section>
+
+      <section className="workspace-grid">
+        <article className="panel process-panel">
+          <div className="panel-heading"><div><p className="eyebrow">PROCESS OVERVIEW</p><h2 className="section-title">Surface flow path</h2></div><span className="panel-context">READ-ONLY / SIMULATED</span></div>
+          <div className="process-mimic" aria-label="Simulated drilling fluid flow path">
+            <div className="process-node"><span className="process-index">01</span><div><strong>MUD PUMPS</strong><small>standpipe pressure</small></div><b>{formatValue(current?.pumpPressure)} <em>psi</em></b></div>
+            <span className="process-arrow" aria-hidden="true">→</span>
+            <div className="process-node"><span className="process-index">02</span><div><strong>WELLBORE / BIT</strong><small>downhole state</small></div><b className="process-muted">not modeled</b></div>
+            <span className="process-arrow" aria-hidden="true">→</span>
+            <div className="process-node"><span className="process-index">03</span><div><strong>RETURNS / PITS</strong><small>mud pit volume</small></div><b>{formatValue(current?.mudPitVolume)} <em>bbl</em></b></div>
+          </div>
+          <div className="process-footer"><span><b>SCENARIO</b> {scenarioLabel(scenario)}</span><span><b>DEPTH</b> not modeled</span><span><b>FLOW</b> simulated signal</span></div>
+        </article>
+
+        <aside className="panel alarm-rail" aria-live="polite">
+          <div className="panel-heading"><div><p className="eyebrow">ALARM STATUS</p><h2 className="section-title">Event monitor</h2></div><span className={`counter ${currentAlarm ? 'counter-critical' : ''}`}>{alarms.filter((alarm) => alarm.status !== 'cleared').length}</span></div>
+          <div className={currentAlarm ? 'alarm-rail-state rail-critical' : 'alarm-rail-state'}><span className="alarm-state-icon" aria-hidden="true">{currentAlarm ? '!' : '✓'}</span><div><strong>{currentAlarm ? 'Attention required' : 'No active alarms'}</strong><small>{currentAlarm ? currentAlarm.message : 'All monitored signals within demo limits'}</small></div></div>
+          {alarms.length === 0 ? <p className="empty-state compact-empty">No events in this session.</p> : <div className="alarm-table alarm-table-compact">{alarms.slice().reverse().slice(0, 3).map((alarm) => <div className={`alarm-table-row alarm-${alarm.status}`} key={alarm.id}><span className="severity-mark" aria-hidden="true">{alarm.status === 'active' ? '!' : alarm.status === 'acknowledged' ? '✓' : '·'}</span><div><strong>PIT VOLUME</strong><small>{formatTime(alarm.timestamp)} · {alarm.status}</small></div><span className="alarm-priority">{alarmPriority(alarm.status)}</span></div>)}</div>}
+        </aside>
+      </section>
+
+      <section className="telemetry-section" aria-label="Live drilling telemetry">
+        <div className="section-heading"><div><p className="eyebrow">LIVE TELEMETRY</p><h2 className="section-title">Drilling parameters</h2></div><span className="panel-context">1 SEC SAMPLE / LAST 30 POINTS</span></div>
+        <div className="metric-grid">
+          {cards.map((card) => <article className="metric-card" key={card.field}>
+          <div className="metric-heading"><div><span className="metric-tag">{card.field === 'mudPitVolume' ? 'MUD SYSTEM' : 'DRILLING'}</span><span className="metric-label">{card.label}</span></div><span className="metric-unit">{card.unit}</span></div>
+          {card.field === 'mudPitVolume' ? <PitVolumeChart readings={chartReadings} alarms={alarms} threshold={ALARM_OPTIONS.increaseThreshold} windowSeconds={ALARM_OPTIONS.windowSeconds} min={card.min} max={card.max} /> : <SensorChart readings={chartReadings} field={card.field} color={card.color} min={card.min} max={card.max} unit={card.unit} />}
+          </article>)}
         </div>
       </section>
 
-      <section className="status-strip">
-        <span className={currentAlarm ? 'status-badge alarm' : 'status-badge'}><span className="status-icon" aria-hidden="true">{currentAlarm ? '!' : '✓'}</span>{currentAlarm ? `KICK ALARM ${currentAlarm.status.toUpperCase()}` : 'SYSTEM NOMINAL'}</span>
-        <span className="status-detail">{qualityText}</span><span className="status-detail">Scenario {scenarioLabel(scenario)}</span><span className="status-detail">Last sample {timeLabel}</span><span className="status-detail">Buffer {bufferedCount} readings</span>
-      </section>
-
-      <section className="metric-grid">
-        {cards.map((card) => <article className="metric-card" key={card.field}>
-          <div className="metric-heading"><span>{card.label}</span><span className="metric-unit">{card.unit}</span></div>
-          {card.field === 'mudPitVolume' ? <PitVolumeChart readings={chartReadings} alarms={alarms} threshold={ALARM_OPTIONS.increaseThreshold} windowSeconds={ALARM_OPTIONS.windowSeconds} min={card.min} max={card.max} /> : <SensorChart readings={chartReadings} field={card.field} color={card.color} min={card.min} max={card.max} unit={card.unit} />}
-        </article>)}
-      </section>
-
       <section className="lower-grid">
-        <article className="panel alarm-panel"><div className="panel-heading"><div><p className="eyebrow">EVENT LOG</p><h3>Alarm history</h3></div><span className="counter">{alarms.length}</span></div>{alarms.length === 0 ? <p className="empty-state">No alarms in this session. Use “Inject kick event” or choose the kick scenario.</p> : <div className="alarm-list">{alarms.slice().reverse().map((alarm) => <div className={`alarm-row alarm-${alarm.status}`} key={alarm.id}><span className="alarm-dot" aria-hidden="true">{alarm.status === 'active' ? '!' : alarm.status === 'acknowledged' ? '✓' : '·'}</span><div className="alarm-content"><strong><span aria-hidden="true">⚠</span> {alarm.message}</strong><span className="alarm-meta">{alarm.status} · {new Date(alarm.timestamp).toLocaleTimeString()}</span>{alarm.status === 'active' && <button className="button compact" onClick={() => acknowledgeAlarm(alarm.id)}>Acknowledge</button>}</div></div>)}</div>}</article>
-        <article className="panel explainer"><p className="eyebrow">OPERATOR NOTES</p><h3>How this demo behaves</h3><p>The detector compares pit volume now with the reading at least 5 seconds ago. A change strictly greater than 50 bbl starts one alarm, then a 15-second cooldown prevents rapid re-triggering.</p><p>Active alarms can be acknowledged. When the pit-volume condition ends, the alarm is marked cleared. The event marker and Δ5s line make the trigger visible on the pit chart.</p><p>Choose a scenario to demonstrate a kick, lost circulation, pressure loss, or a missing sensor reading.</p></article>
+        <article className="panel alarm-panel"><div className="panel-heading"><div><p className="eyebrow">EVENT HISTORY</p><h2 className="section-title">Alarm journal</h2></div><span className="counter">{alarms.length}</span></div>{alarms.length === 0 ? <p className="empty-state">No events in this session. Use the simulator controls to inject a scenario.</p> : <div className="alarm-table alarm-history-table"><div className="alarm-table-header"><span>TAG</span><span>ACTIVE TIME</span><span>STATE</span><span>PRIORITY</span><span>ACTION</span></div>{alarms.slice().reverse().map((alarm) => <div className={`alarm-table-row alarm-${alarm.status}`} key={alarm.id}><span><strong>PIT VOLUME</strong><small>{alarm.message}</small></span><span>{formatTime(alarm.timestamp)}</span><span>{alarm.status}</span><span className="alarm-priority">{alarmPriority(alarm.status)}</span><span>{alarm.status === 'active' ? <button className="button compact" onClick={() => acknowledgeAlarm(alarm.id)}>Acknowledge</button> : alarm.status === 'cleared' ? formatTime(alarm.clearedAt) : '—'}</span></div>)}</div>}</article>
+        <article className="panel controls-panel"><div className="panel-heading"><div><p className="eyebrow">SIMULATOR / INSTRUCTOR</p><h2 className="section-title">Scenario controls</h2></div></div><p className="control-warning"><span aria-hidden="true">ⓘ</span> Demo controls only. No real equipment is connected.</p><label className="scenario-control"><span className="eyebrow">SCENARIO</span><select value={scenario} onChange={(event) => startScenario(event.target.value as Scenario)} aria-label="Choose a rig scenario">{scenarios.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button className="button kick-button" onClick={injectKick}>Inject simulated kick <span>↗</span></button><div className="control-notes"><p>The detector compares pit volume now with the reading at least 5 seconds ago.</p><p>A change strictly greater than 50 bbl starts one alarm. A 15-second cooldown prevents rapid re-triggering.</p></div></article>
       </section>
-      <footer>RigWatch is a simulated project built to understand drilling telemetry concepts. It uses no real Pason data or products.</footer>
+      <footer>RigWatch is a simulated learning project. It uses no real Pason data, products, or equipment controls.</footer>
     </main>
   );
 }
