@@ -1,4 +1,4 @@
-import type { SensorReading } from './types';
+import type { Scenario, SensorReading } from './types';
 
 // Keeping the state in one object makes the random walk easy to explain.
 type SimulatorState = Omit<SensorReading, 'timestamp'>;
@@ -22,7 +22,8 @@ export class RigSimulator {
     rateOfPenetration: 32,
   };
 
-  private kickSecondsRemaining = 0;
+  private scenario: Scenario = 'normal';
+  private scenarioReadingsRemaining = 0;
 
   read(timestamp = Date.now()): SensorReading {
     this.state.weightOnBit = step(this.state.weightOnBit, 2, LIMITS.weightOnBit.min, LIMITS.weightOnBit.max);
@@ -34,11 +35,15 @@ export class RigSimulator {
       LIMITS.rateOfPenetration.max,
     );
 
-    if (this.kickSecondsRemaining > 0) {
+    const activeScenario = this.scenario;
+    if (activeScenario === 'kick') {
       // A kick is deliberately obvious: extra pit volume arrives for a few seconds.
       this.state.mudPitVolume = clamp(this.state.mudPitVolume + 24, LIMITS.mudPitVolume.min, 1_650);
-      this.kickSecondsRemaining -= 1;
-    } else {
+    } else if (activeScenario === 'lostCirculation') {
+      this.state.mudPitVolume = clamp(this.state.mudPitVolume - 18, LIMITS.mudPitVolume.min, LIMITS.mudPitVolume.max);
+    } else if (activeScenario === 'pressureLoss') {
+      this.state.pumpPressure = clamp(this.state.pumpPressure - 350, LIMITS.pumpPressure.min, LIMITS.pumpPressure.max);
+    } else if (activeScenario !== 'sensorDropout') {
       this.state.mudPitVolume = step(
         this.state.mudPitVolume,
         3,
@@ -47,10 +52,26 @@ export class RigSimulator {
       );
     }
 
-    return { timestamp, ...this.state };
+    const reading = { timestamp, ...this.state };
+    if (activeScenario === 'sensorDropout') {
+      // Keep the internal value healthy so the sensor can recover after the scenario.
+      reading.mudPitVolume = Number.NaN;
+    }
+
+    if (activeScenario !== 'normal') {
+      this.scenarioReadingsRemaining -= 1;
+      if (this.scenarioReadingsRemaining <= 0) this.scenario = 'normal';
+    }
+
+    return reading;
+  }
+
+  setScenario(scenario: Scenario) {
+    this.scenario = scenario;
+    this.scenarioReadingsRemaining = scenario === 'normal' ? 0 : 5;
   }
 
   injectKick() {
-    this.kickSecondsRemaining = 5;
+    this.setScenario('kick');
   }
 }

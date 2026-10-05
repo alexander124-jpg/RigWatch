@@ -18,21 +18,23 @@ npm run build  # production build
 
 ## Architecture
 
-- `src/simulator.ts` owns the one-reading-per-second random walk. `injectKick()` adds 24 bbl per second for five seconds so the alarm is easy to observe.
-- `src/App.tsx` owns the small amount of UI state. It keeps the most recent 60 readings and renders four SVG line charts from that history.
-- `src/alarm.ts` is a pure function. It receives readings and explicit threshold settings, so it has no timer, DOM, or React dependency.
+- `src/simulator.ts` owns the one-reading-per-second random walk and five short demo scenarios: normal, kick, lost circulation, pressure loss, and sensor dropout.
+- `src/App.tsx` owns the small amount of UI state. It keeps the most recent 60 readings, renders four SVG line charts, and coordinates the alarm lifecycle.
+- `src/alarm.ts` contains pure, typed functions. It calculates the five-second pit change, detects a strict threshold crossing, applies the cooldown, and transitions alarm status without knowing about React or the DOM.
 - `src/quality.ts` checks finite values and deliberately broad operating ranges. In a real system these limits would come from sensor metadata and well context.
 - `src/buffer.ts` is a FIFO queue. While offline, generated readings go into the queue. On reconnect, `flush()` returns a copy in insertion order and clears the queue.
 
 ## Alarm logic
 
-The demo uses `increaseThreshold: 50` bbl and `windowSeconds: 5`. The detector takes the newest reading, finds the oldest reading at least five seconds earlier, and calculates:
+The demo uses `increaseThreshold: 50` bbl, `windowSeconds: 5`, and a 15-second cooldown. The detector takes the newest reading, finds the oldest reading at least five seconds earlier, and calculates:
 
 ```text
 newest.mudPitVolume - oldest.mudPitVolume > 50
 ```
 
-The comparison is intentionally strict: exactly +50 bbl is the borderline no-alarm case. The unit tests cover normal movement, the exact threshold, a kick, and an incomplete time window.
+The comparison is intentionally strict: exactly +50 bbl is the borderline no-alarm case, while exactly five seconds is eligible. A new alarm is created only when the detector changes from false to true and the cooldown has elapsed. It starts active, can be acknowledged, and becomes cleared when the detector condition ends. The pit chart marks alarm events and plots both absolute pit volume and the five-second change.
+
+The scenario menu makes a short interview demo easy: a kick raises pit volume, lost circulation drops it, pressure loss reduces pump pressure, and sensor dropout emits a missing pit-volume value that the data-quality check flags.
 
 ## What I would improve
 
