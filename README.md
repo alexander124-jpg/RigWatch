@@ -5,7 +5,7 @@ RigWatch is a small simulated project built to understand the shape of drilling 
 
 [Open the live RigWatch demo](https://alexander124-jpg.github.io/RigWatch/)
 
-The site is deployed from `main` with GitHub Actions and GitHub Pages. The dashboard below shows the pit-volume chart with its alarm marker, threshold, and five-second change line.
+The site is configured to deploy from `main` with GitHub Actions and GitHub Pages. To publish it the first time, enable `Settings → Pages → Source: GitHub Actions` in the repository; later pushes deploy automatically. The dashboard below shows the pit-volume chart with its alarm marker, threshold, and five-second change line.
 
 ![RigWatch dashboard with pit-volume alarm marker](docs/rigwatch-kick-alarm.png)
 
